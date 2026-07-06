@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Estoque · Northn</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+<link rel="stylesheet" href="css/glass.css">
+<style>
+  :root {
+    --brand: #0A84FF;
+    --brand-dark: #1A1A2E;
+    --brand-rgb: 10, 132, 255;
+  }
+  body { min-height: 100vh; padding-bottom: 110px; }
+
+  .app-header {
+    position: sticky; top: 0; z-index: 100;
+    padding: 16px 20px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .app-header .who { display: flex; align-items: center; gap: 12px; }
+  .app-header .logo-mini {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+  }
+  .app-header h1 { margin: 0; font-size: 16px; font-weight: 700; }
+  .app-header .sub { font-size: 11.5px; color: var(--ink-soft); }
+
+  .container { padding: 0 20px; max-width: 640px; margin: 0 auto; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottom-nav {
+    position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 200;
+    display: flex; justify-content: space-between;
+    padding: 8px; border-radius: var(--r-pill);
+    max-width: 620px; margin: 0 auto;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 8px 4px; border-radius: var(--r-pill);
+    color: var(--ink-faint); font-size: 10.5px; font-weight: 600;
+    transition: all 0.3s var(--ease-spring); border: none; background: none;
+  }
+  .nav-item.active { color: var(--brand); background: rgba(var(--brand-rgb), 0.1); transform: scale(1.05); }
+
+  /* ---------- Chips de filial ---------- */
+  .chips {
+    display: flex; gap: 8px; overflow-x: auto;
+    padding: 4px 2px 10px; -webkit-overflow-scrolling: touch;
+  }
+  .chip {
+    flex-shrink: 0;
+    padding: 9px 16px; border-radius: var(--r-pill);
+    font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.5); color: var(--ink-soft);
+    backdrop-filter: blur(12px);
+    transition: all 0.25s var(--ease-spring);
+  }
+  .chip .cidade { font-weight: 500; opacity: 0.65; font-size: 11.5px; }
+  .chip.active {
+    background: var(--brand); color: #fff; border-color: transparent;
+    box-shadow: 0 4px 14px rgba(var(--brand-rgb), 0.35);
+  }
+
+  /* ---------- KPIs ---------- */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 16px; }
+  .stat-card {
+    padding: 18px; border-radius: var(--r-lg);
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(18px) saturate(1.5);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5);
+    border: 1px solid rgba(255,255,255,0.5);
+  }
+  .stat-card .num { font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .stat-card .lbl { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .stat-card.alerta .num { color: #D70015; }
+
+  .section-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-faint); margin: 22px 4px 10px;
+  }
+
+  /* ---------- Linha de produto ---------- */
+  .prod-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px; border-radius: var(--r-lg); margin-bottom: 10px;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(16px) saturate(1.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    border: 1px solid rgba(255,255,255,0.5);
+    cursor: pointer;
+    transition: transform 0.25s var(--ease-spring);
+  }
+  .prod-row:active { transform: scale(0.985); }
+  .prod-row .ic-box {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(var(--brand-rgb), 0.1); color: var(--brand);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .prod-row .info { flex: 1; min-width: 0; }
+  .prod-row .info h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .prod-row .info p { margin: 2px 0 0; font-size: 12px; color: var(--ink-soft); }
+  .prod-row .qty { text-align: right; }
+  .prod-row .qty .n { font-size: 17px; font-weight: 750; }
+  .prod-row .qty .u { font-size: 11px; color: var(--ink-faint); }
+  .prod-row.baixo .qty .n { color: #D70015; }
+
+  /* ---------- Detalhe por filial (busca) ---------- */
+  .filial-breakdown { margin: 4px 0 12px; padding: 0 4px; }
+  .fb-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; margin-bottom: 8px;
+    border-radius: var(--r-md);
+    background: rgba(255,255,255,0.45);
+    border: 1px solid rgba(255,255,255,0.45);
+    backdrop-filter: blur(12px);
+    font-size: 13.5px;
+  }
+  .fb-row .loc { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .fb-row .loc .nome { font-weight: 650; }
+  .fb-row .loc .cid { color: var(--ink-soft); font-size: 12px; }
+  .fb-row .q { font-weight: 750; }
+  .fb-row.zero { opacity: 0.55; }
+  .fb-row.baixo .q { color: #D70015; }
+
+  .search-bar { position: relative; margin: 6px 0 14px; }
+  .search-bar input {
+    width: 100%; box-sizing: border-box;
+    font-size: 15px; padding: 14px 16px 14px 46px;
+    border-radius: var(--r-pill);
+    border: 1.5px solid rgba(60,60,67,0.14);
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(10px);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-bar input:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px rgba(var(--brand-rgb), 0.15);
+  }
+  .search-bar .ic {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: var(--ink-faint); display: flex;
+  }
+
+  /* ---------- Movimentações ---------- */
+  .mov-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-bottom: 8px;
+    border-radius: var(--r-md);
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.45);
+    font-size: 13.5px;
+  }
+  .mov-row .ic { width: 34px; height: 34px; border-radius: 10px; display:flex; align-items:center; justify-content:center; flex-shrink: 0; }
+  .mov-row .ic.entrada { background: rgba(52,199,89,0.15); color: #248A3D; }
+  .mov-row .ic.saida { background: rgba(255,59,48,0.13); color: #D70015; }
+  .mov-row .ic.ajuste { background: rgba(255,159,10,0.15); color: #C93400; }
+  .mov-row .ic.transf { background: rgba(var(--brand-rgb),0.12); color: var(--brand); }
+  .mov-row .info { flex: 1; min-width: 0; }
+  .mov-row .info .t { font-weight: 650; }
+  .mov-row .info .s { color: var(--ink-soft); font-size: 12px; }
+  .mov-row .when { color: var(--ink-faint); font-size: 11.5px; white-space: nowrap; }
+
+  .form-card { padding: 20px; border-radius: var(--r-lg); margin-bottom: 16px; }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .seg {
+    display: flex; gap: 4px; padding: 4px; border-radius: var(--r-pill);
+    background: rgba(120,120,128,0.12); margin-bottom: 14px;
+  }
+  .seg button {
+    flex: 1; border: none; background: none; padding: 9px 6px;
+    border-radius: var(--r-pill); font-size: 13px; font-weight: 600;
+    color: var(--ink-soft); transition: all 0.25s var(--ease-spring);
+  }
+  .seg button.active { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+  .empty {
+    text-align: center; padding: 48px 20px; color: var(--ink-faint);
+  }
+  .empty p { margin: 10px 0 0; font-size: 14px; }
+
+  .view { display: none; }
+  .view.active { display: block; animation: fadeUp 0.4s var(--ease-out) both; }
+
+  /* ---------- Indicador "ao vivo" ---------- */
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-faint); margin-left: 6px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .live-badge.on { opacity: 1; color: #248A3D; }
+  .live-badge .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: currentColor;
+  }
+  .live-badge.on .dot { animation: livePulse 1.6s ease-in-out infinite; }
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+  }
+
+  /* flash em linha atualizada ao vivo */
+  @keyframes rowFlash {
+    0% { box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.45); }
+    100% { box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0); }
+  }
+  .flash { animation: rowFlash 1.2s var(--ease-out) both; }
+
+  .btn-vender {
+    border: none; border-radius: var(--r-pill);
+    padding: 6px 14px; font-size: 12px; font-weight: 700;
+    background: rgba(var(--brand-rgb), 0.12); color: var(--brand);
+    margin-left: 10px; flex-shrink: 0;
+    transition: transform 0.2s var(--ease-spring);
+  }
+  .btn-vender:active { transform: scale(0.92); }
+</style>
+</head>
+<body>
+<div class="ambient-bg"></div>
+
+<header class="app-header glass">
+  <div class="who">
+    <div class="logo-mini" data-icon="boxes" data-icon-size="22"></div>
+    <div>
+      <h1>Gestor de Estoque</h1>
+      <div class="sub"><span id="headerSub">Todas as lojas</span> <span class="live-badge" id="liveBadge"><span class="dot"></span>ao vivo</span></div>
+    </div>
+  </div>
+  <button class="btn btn-icon btn-glass" id="btnRefresh" title="Atualizar" data-icon="refresh" data-icon-size="19"></button>
+</header>
+
+<main class="container">
+
+  <!-- ================= VISÃO GERAL ================= -->
+  <section class="view active" id="view-dash">
+    <div class="chips" id="chipsFiliais"></div>
+    <div class="stat-grid" id="statGrid"></div>
+    <div class="section-title">Produtos</div>
+    <div id="listaProdutos"></div>
+  </section>
+
+  <!-- ================= BUSCAR ================= -->
+  <section class="view" id="view-busca">
+    <div class="search-bar">
+      <span class="ic" data-icon="search" data-icon-size="18"></span>
+      <input type="text" id="inputBusca" placeholder="Buscar produto por nome ou SKU..." autocomplete="off">
+    </div>
+    <div class="chips" id="chipsCidades"></div>
+    <div id="resultadosBusca"></div>
+  </section>
+
+  <!-- ================= MOVIMENTAR ================= -->
+  <section class="view" id="view-mov">
+    <div class="form-card glass-strong">
+      <div class="seg" id="segTipo">
+        <button data-tipo="venda" class="active">Venda</button>
+        <button data-tipo="entrada">Entrada</button>
+        <button data-tipo="saida">Saída</button>
+        <button data-tipo="ajuste">Ajuste</button>
+        <button data-tipo="transferencia">Transf.</button>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label id="lblFilial">Filial</label>
+        <select id="movFilial"></select>
+      </div>
+      <div class="field" id="wrapDestino" style="margin-bottom:12px; display:none">
+        <label>Filial de destino</label>
+        <select id="movDestino"></select>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Produto</label>
+        <select id="movProduto"></select>
+      </div>
+      <div class="form-grid-2">
+        <div class="field">
+          <label id="lblQtd">Quantidade</label>
+          <input type="number" id="movQtd" min="0" step="any" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Observação</label>
+          <input type="text" id="movObs" placeholder="Opcional">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="btnMovimentar" style="margin-top:16px">Registrar</button>
+    </div>
+    <div class="section-title">Últimas movimentações</div>
+    <div id="listaMov"></div>
+  </section>
+
+  <!-- ================= CADASTRO ================= -->
+  <section class="view" id="view-cad">
+    <div class="section-title flex items-center justify-between">
+      <span>Filiais</span>
+      <button class="btn btn-sm btn-glass" id="btnNovaFilial">+ Nova filial</button>
+    </div>
+    <div id="listaFiliais"></div>
+    <div class="section-title flex items-center justify-between">
+      <span>Produtos</span>
+      <button class="btn btn-sm btn-glass" id="btnNovoProduto">+ Novo produto</button>
+    </div>
+    <div id="listaProdutosCad"></div>
+  </section>
+
+</main>
+
+<!-- ================= NAV ================= -->
+<nav class="bottom-nav glass-strong">
+  <button class="nav-item active" data-view="dash"><span data-icon="grid" data-icon-size="20"></span>Visão geral</button>
+  <button class="nav-item" data-view="busca"><span data-icon="search" data-icon-size="20"></span>Buscar</button>
+  <button class="nav-item" data-view="mov"><span data-icon="swap" data-icon-size="20"></span>Movimentar</button>
+  <button class="nav-item" data-view="cad"><span data-icon="store" data-icon-size="20"></span>Cadastro</button>
+</nav>
+
+<!-- ================= SHEET (cadastro) ================= -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header flex items-center justify-between">
+    <h2 id="sheetTitle" style="margin:0; font-size:18px; font-weight:700"></h2>
+    <button class="btn btn-icon btn-ghost" id="sheetClose" data-icon="close" data-icon-size="18"></button>
+  </div>
+  <div class="sheet-body" id="sheetBody"></div>
+</div>
+
+<script src="js/vendor/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
