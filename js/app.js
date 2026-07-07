@@ -28,7 +28,10 @@ const App = (() => {
     movs: [],
     filialSel: 'all',
     cidadeSel: 'all',
+    lojaSel: 'all',
     busca: '',
+    acIndex: -1,
+    acItens: [],
     tipoMov: 'venda',
     sheetProdutoId: null,
   };
@@ -76,6 +79,7 @@ const App = (() => {
     renderStats();
     renderListaProdutos();
     renderChipsCidades();
+    renderChipsLojas();
     renderBusca();
     renderSelectsMov();
     renderMovs();
@@ -231,24 +235,156 @@ const App = (() => {
     }));
   }
 
+  function renderChipsLojas() {
+    const el = $('#chipsLojas');
+    el.innerHTML = `
+      <button class="chip ${state.lojaSel === 'all' ? 'active' : ''}" data-loja="all">Todas as lojas</button>
+      ${state.filiais.map(f => `
+        <button class="chip ${state.lojaSel === f.id ? 'active' : ''}" data-loja="${esc(f.id)}">${esc(f.nome)}</button>`).join('')}`;
+    el.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+      state.lojaSel = c.dataset.loja;
+      renderChipsLojas();
+      renderAutocomplete();
+      renderBusca();
+    }));
+  }
+
+  // Produtos que batem com o termo, respeitando o escopo de loja selecionado
+  function produtosFiltrados(termo) {
+    const t = (termo || '').trim().toLowerCase();
+    return state.produtos.filter(p => {
+      const bateTexto = !t || p.nome.toLowerCase().includes(t) || (p.sku || '').toLowerCase().includes(t);
+      if (!bateTexto) return false;
+      if (state.lojaSel === 'all') return true;
+      // por loja: só mostra produtos que existem (saldo registrado) naquela loja
+      return state.saldos.some(s => s.produto_id === p.id && s.filial_id === state.lojaSel);
+    });
+  }
+
+  function grifar(nome, termo) {
+    const t = (termo || '').trim();
+    if (!t) return esc(nome);
+    const i = nome.toLowerCase().indexOf(t.toLowerCase());
+    if (i < 0) return esc(nome);
+    return esc(nome.slice(0, i)) + '<mark>' + esc(nome.slice(i, i + t.length)) + '</mark>' + esc(nome.slice(i + t.length));
+  }
+
+  function renderAutocomplete() {
+    const box = $('#autocompleteList');
+    const input = $('#inputBusca');
+    const termo = state.busca.trim();
+    if (!termo) {
+      box.classList.remove('open');
+      input.setAttribute('aria-expanded', 'false');
+      state.acItens = [];
+      state.acIndex = -1;
+      return;
+    }
+    const achados = produtosFiltrados(termo).slice(0, 8);
+    state.acItens = achados;
+    if (state.acIndex >= achados.length) state.acIndex = -1;
+
+    const escopoLabel = state.lojaSel === 'all'
+      ? 'todas as lojas'
+      : (filialPor(state.lojaSel)?.nome || 'loja');
+
+    if (!achados.length) {
+      box.innerHTML = `<div class="ac-empty">Nenhum produto em ${esc(escopoLabel)}</div>`;
+    } else {
+      box.innerHTML = achados.map((p, i) => {
+        const q = state.lojaSel === 'all' ? saldo(p.id) : saldo(p.id, state.lojaSel);
+        return `
+        <div class="ac-item ${i === state.acIndex ? 'active' : ''}" role="option" data-ac="${p.id}" data-idx="${i}">
+          <span class="ac-ic">${Icon.boxes({ size: 18 })}</span>
+          <span class="ac-info">
+            <div class="ac-nome">${grifar(p.nome, termo)}</div>
+            <div class="ac-sub">${esc(p.sku || 'sem SKU')} · ${esc(escopoLabel)}</div>
+          </span>
+          <span class="ac-saldo">${fmtQtd(q)} ${esc(p.unidade)}</span>
+        </div>`;
+      }).join('');
+    }
+    box.classList.add('open');
+    input.setAttribute('aria-expanded', 'true');
+
+    box.querySelectorAll('.ac-item').forEach(item => {
+      item.addEventListener('click', () => selecionarAutocomplete(item.dataset.ac));
+    });
+  }
+
+  function selecionarAutocomplete(produtoId) {
+    const p = produtoPor(produtoId);
+    if (!p) return;
+    state.busca = p.nome;
+    $('#inputBusca').value = p.nome;
+    $('#autocompleteList').classList.remove('open');
+    $('#inputBusca').setAttribute('aria-expanded', 'false');
+    state.acIndex = -1;
+    renderBusca();
+  }
+
+  function navegarAutocomplete(e) {
+    const box = $('#autocompleteList');
+    if (!box.classList.contains('open')) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      state.acIndex = Math.min(state.acIndex + 1, state.acItens.length - 1);
+      renderAutocomplete();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      state.acIndex = Math.max(state.acIndex - 1, 0);
+      renderAutocomplete();
+    } else if (e.key === 'Enter') {
+      if (state.acIndex >= 0 && state.acItens[state.acIndex]) {
+        e.preventDefault();
+        selecionarAutocomplete(state.acItens[state.acIndex].id);
+      }
+    } else if (e.key === 'Escape') {
+      box.classList.remove('open');
+      $('#inputBusca').setAttribute('aria-expanded', 'false');
+      state.acIndex = -1;
+    }
+  }
+
   function renderBusca() {
     const el = $('#resultadosBusca');
     const termo = state.busca.trim().toLowerCase();
-    const achados = state.produtos.filter(p =>
-      !termo || p.nome.toLowerCase().includes(termo) || (p.sku || '').toLowerCase().includes(termo));
+    const achados = produtosFiltrados(termo);
     if (!achados.length) {
       el.innerHTML = `<div class="empty">${Icon.search404({ size: 40 })}<p>Nenhum produto encontrado</p></div>`;
       return;
     }
+    // Se uma loja específica está selecionada, o breakdown mostra só ela
+    const filtroCidadeEfetivo = state.lojaSel === 'all' ? state.cidadeSel : 'all';
     el.innerHTML = achados.map(p => `
       <div class="prod-row" style="cursor:default; margin-bottom:4px">
         <div class="ic-box">${Icon.boxes({ size: 22 })}</div>
         <div class="info">
           <h3>${esc(p.nome)}</h3>
-          <p>${esc(p.sku || '—')} · total ${fmtQtd(saldo(p.id))} ${esc(p.unidade)}</p>
+          <p>${esc(p.sku || '—')} · total ${fmtQtd(state.lojaSel === 'all' ? saldo(p.id) : saldo(p.id, state.lojaSel))} ${esc(p.unidade)}</p>
         </div>
       </div>
-      ${breakdownHTML(p, state.cidadeSel)}`).join('');
+      ${state.lojaSel === 'all' ? breakdownHTML(p, filtroCidadeEfetivo) : breakdownUmaLoja(p, state.lojaSel)}`).join('');
+  }
+
+  function breakdownUmaLoja(p, filialId) {
+    const f = filialPor(filialId);
+    if (!f) return '';
+    const q = saldo(p.id, filialId);
+    const baixo = q > 0 && q <= Number(p.estoque_minimo);
+    return `<div class="filial-breakdown">
+      <div class="fb-row ${q === 0 ? 'zero' : ''} ${baixo ? 'baixo' : ''}" data-fb="${p.id}:${f.id}">
+        <div class="loc">
+          ${Icon.pin({ size: 15 })}
+          <span class="nome">${esc(f.nome)}</span>
+          <span class="cid">${esc(f.cidade)}${f.estado ? ' · ' + esc(f.estado) : ''}</span>
+        </div>
+        <span class="flex items-center">
+          <span class="q">${fmtQtd(q)} ${esc(p.unidade)}</span>
+          ${q > 0 ? `<button class="btn-vender" data-vender-p="${p.id}" data-vender-f="${f.id}">Vender</button>` : ''}
+        </span>
+      </div>
+    </div>`;
   }
 
   /* ================= Movimentar ================= */
@@ -511,7 +647,20 @@ const App = (() => {
   function init() {
     document.querySelectorAll('.nav-item').forEach(b =>
       b.addEventListener('click', () => trocarView(b.dataset.view)));
-    $('#inputBusca').addEventListener('input', (e) => { state.busca = e.target.value; renderBusca(); });
+    $('#inputBusca').addEventListener('input', (e) => {
+      state.busca = e.target.value;
+      state.acIndex = -1;
+      renderAutocomplete();
+      renderBusca();
+    });
+    $('#inputBusca').addEventListener('keydown', navegarAutocomplete);
+    $('#inputBusca').addEventListener('focus', () => { if (state.busca.trim()) renderAutocomplete(); });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-bar')) {
+        const box = $('#autocompleteList');
+        if (box) { box.classList.remove('open'); $('#inputBusca').setAttribute('aria-expanded', 'false'); }
+      }
+    });
     document.querySelectorAll('#segTipo button').forEach(b =>
       b.addEventListener('click', () => setTipoMov(b.dataset.tipo)));
     $('#btnMovimentar').addEventListener('click', registrarMov);

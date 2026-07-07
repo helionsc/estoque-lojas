@@ -118,6 +118,32 @@ setTimeout(() => {
   asserts.push(['linha alterada recebe flash',
     $('#listaProdutos .prod-row[data-id="p1"]').classList.contains('flash')]);
 
+  // ---- Autocomplete ----
+  $('#inputBusca').value = 'caf';
+  $('#inputBusca').dispatchEvent(new window.Event('input', { bubbles: true }));
+  asserts.push(['autocomplete abre ao digitar', $('#autocompleteList').classList.contains('open')]);
+  asserts.push(['autocomplete sugere Café 500g', $('#autocompleteList').textContent.includes('Café 500g')]);
+  asserts.push(['autocomplete grifa o trecho digitado', $('#autocompleteList mark') !== null]);
+
+  // Navegação por teclado + Enter seleciona
+  $('#inputBusca').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  asserts.push(['seta marca item ativo', $('#autocompleteList .ac-item.active') !== null]);
+  $('#inputBusca').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  asserts.push(['Enter preenche o input', $('#inputBusca').value === 'Café 500g']);
+  asserts.push(['Enter fecha o dropdown', !$('#autocompleteList').classList.contains('open')]);
+
+  // Escopo por loja: Café só existe em f1 (São Paulo), não em f2 (Rio)
+  $('#inputBusca').value = 'caf';
+  $('#inputBusca').dispatchEvent(new window.Event('input', { bubbles: true }));
+  $('#chipsLojas .chip[data-loja="f2"]').click();
+  asserts.push(['escopo por loja filtra: Café some na Filial Rio',
+    !$('#resultadosBusca').textContent.includes('Café 500g')]);
+  $('#chipsLojas .chip[data-loja="f1"]').click();
+  asserts.push(['escopo por loja mantém: Café aparece na Matriz',
+    $('#resultadosBusca').textContent.includes('Café 500g')]);
+  // Volta pra todas as lojas
+  $('#chipsLojas .chip[data-loja="all"]').click();
+
   let fail = 0;
   for (const [nome, ok] of asserts) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${nome}`);
